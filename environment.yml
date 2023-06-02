@@ -1,0 +1,20 @@
+name: netalign
+
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+
+dependencies:
+  - pip
+  - python=3.9
+  - biopython
+  - matplotlib
+  - numpy
+  - pandas
+  - scikit-learn
+  - scipy
+  - networkx
+  - seaborn
+  - setuptools
+  - tqdm

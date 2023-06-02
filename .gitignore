@@ -1,0 +1,15 @@
+*.npy
+*.md 
+
+!README.md
+**/__pycache__
+**/build
+
+output*
+
+*.logs
+
+
+**/.ipynb_checkpoints
+
+
