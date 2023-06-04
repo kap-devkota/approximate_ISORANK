@@ -1,13 +1,11 @@
 import sys
 from .io_utils import compute_adjacency, compute_pairs
-from .isorank_compute import compute_isorank, compute_greedy_assignment, pair_acc
-from .pair_evaluations import compute_edge_correctness, semantic_sim, symmetric_substructure, lccs
+from .isorank_compute import compute_isorank, compute_greedy_assignment
 import pandas as pd
 from numpy.linalg import norm
 import argparse
 import os
 import json
-from typing import Callable, NamedTuple, Optional
 
 class ApproxIsorankArgs(NamedTuple):
     cmd: str
