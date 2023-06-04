@@ -1,14 +1,15 @@
 name: netalign
 
 channels:
-  - pytorch
+  - pytorch 
   - conda-forge
   - defaults
-
+  
 dependencies:
   - pip
-  - python=3.9
-  - biopython
+  - python
+  - pytorch
+  - biopython  
   - matplotlib
   - numpy
   - pandas
