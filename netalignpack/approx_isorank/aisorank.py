@@ -7,13 +7,12 @@ from numpy.linalg import norm
 import argparse
 import os
 import json
+from typing import Callable, NamedTuple, Optional
 
 class ApproxIsorankArgs(NamedTuple):
     cmd: str
     net1: str
     net2: str
-    js1: Optional[str]
-    js2: Optional[str]
     rblast: str
     alpha: Optional[float]
     niter: Optional[int]
@@ -25,8 +24,6 @@ class ApproxIsorankArgs(NamedTuple):
 def getargs(parser):
     parser.add_argument("--net1", required = True, help = "Network 1")
     parser.add_argument("--net2", required = True, help = "Network 2")
-    parser.add_argument("--js1", default = None, help = "JSON for Network 1")
-    parser.add_argument("--js2", default = None, help = "JSON for Network 2")
     parser.add_argument("--rblast", required = True, help  = "Reciprocal Blast results")
     parser.add_argument("--alpha", default = 0.6, type = float, help  = "Alpha parameter")
     parser.add_argument("--niter", default = 1, type = int, 
