@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-import netalignpack
+import netalign
 
 setup(
     name="NetworkAlignmentTools",
-    version=netalignpack.__version__,
+    version=netalign.__version__,
     description="Tools for Network Alignment",
     author="Kapil Devkota, Grigorii Sterin",
     author_email="kapil.devkota@tufts.edu",

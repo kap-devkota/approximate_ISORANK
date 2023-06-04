@@ -1,4 +1,6 @@
+from __future__ import annotations
 import sys
+
 from .io_utils import compute_adjacency, compute_pairs
 from .isorank_compute import compute_isorank, compute_greedy_assignment
 import pandas as pd
@@ -6,6 +8,7 @@ from numpy.linalg import norm
 import argparse
 import os
 import json
+from typing import NamedTuple, Callable, Optional
 
 class ApproxIsorankArgs(NamedTuple):
     cmd: str
@@ -19,7 +22,7 @@ class ApproxIsorankArgs(NamedTuple):
     func: Callable[[ApproxIsorankArgs], None]
 
 
-def getargs(parser):
+def add_args(parser):
     parser.add_argument("--net1", required = True, help = "Network 1")
     parser.add_argument("--net2", required = True, help = "Network 2")
     parser.add_argument("--rblast", required = True, help  = "Reciprocal Blast results")
@@ -30,7 +33,7 @@ def getargs(parser):
     parser.add_argument("--npairs", default = 1000, type = int)
     parser.add_argument("--output", default = "output.tsv")
                         
-    return parser.parse_args()
+    return parser
 
 def main(args):
     df1 = pd.read_csv(args.net1, sep = "\t", header = None)
@@ -39,15 +42,11 @@ def main(args):
 
     org1 = args.net1.split("/")[-1].split(".")[0]
     org2 = args.net2.split("/")[-1].split(".")[0]
+
+    print(f"Aligning the {org1} and {org2} networks using Approximate Isorank.")
     
     Af1, nA1 = compute_adjacency(df1)
     Af2, nA2 = compute_adjacency(df2)
-
-    df1[0] = df1[0].apply(lambda x : nA1[x])
-    df1[1] = df1[1].apply(lambda x : nA1[x])
-    
-    df2[0] = df2[0].apply(lambda x : nA2[x])
-    df2[1] = df2[1].apply(lambda x : nA2[x])
     
     E = compute_pairs(dpairs, nA1, nA2, org1, org2)
     
@@ -62,15 +61,19 @@ def main(args):
     print("Computing pairs...")
     pairs = compute_greedy_assignment(R, args.npairs)
     
-    results = pd.read_csv(pairs, columns = ["Sp-A", "Sp-B"])
-    results.loc[:, "Sp-A"] = results.loc[:, "Sp-A"].apply(lambda x : nA1[x])
-    results.loc[:, "Sp-B"] = results.loc[:, "Sp-B"].apply(lambda x : nA2[x])
+    # Mapping id->symbol
+    rnA1 = {v: k for k, v in nA1.items()}
+    rnA2 = {v: k for k, v in nA2.items()}
+
+    results = pd.DataFrame(pairs, columns = [org1, org2])
+    results.loc[:, org1] = results.loc[:, org1].apply(lambda x : rnA1[x])
+    results.loc[:, org2] = results.loc[:, org2].apply(lambda x : rnA2[x])
     results.to_csv(args.output, sep = "\t", index = None)
     
     return
     
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    main(getargs(parser))
+    main(add_args(parser))
         
         

@@ -1,0 +1,2 @@
+[console_scripts]
+netalign = netalign.__main__:main

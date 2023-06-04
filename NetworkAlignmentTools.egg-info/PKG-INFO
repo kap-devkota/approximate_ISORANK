@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: NetworkAlignmentTools
+Version: 0.1.1
+Summary: Tools for Network Alignment
+Author: Kapil Devkota, Grigorii Sterin
+Author-email: kapil.devkota@tufts.edu
+License: MIT
+License-File: LICENSE

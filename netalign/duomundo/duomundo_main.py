@@ -65,7 +65,7 @@ class DuoMundoArgs(NamedTuple):
     func: Callable[[DuoMundoArgs], None]
         
         
-def getargs(parser):
+def add_args(parser):
     
     # PPI
     parser.add_argument("--ppiA", help = "PPI for species A: (target)")
@@ -117,7 +117,7 @@ def getargs(parser):
     parser.add_argument("--munkonly", default = False, action = "store_true")
     
     parser.add_argument("--seed", default = 121, type = int)
-    return parser.parse_args()
+    return parser
 
 
 def get_scoring(metric, all_go_labels = None, **kwargs):
@@ -402,7 +402,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
-    main(getargs(parser))
+    main(add_args(parser))
       
     
     

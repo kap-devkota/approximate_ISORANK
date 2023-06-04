@@ -54,7 +54,7 @@ def main():
         "duomundo": duomundo_main,
         "isorank": aisorank,
     }
-
+    
     for name, module in modules.items():
         sp = subparsers.add_parser(name, description=module.__doc__)
         module.add_args(sp)

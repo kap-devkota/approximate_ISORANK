@@ -21,5 +21,5 @@ class TestAIsorank:
         assert not proc.returncode
 
     def test_aisorank_r0(self):
-        cmd = "netalign isorank --net1 ./netalignpack/tests/human.tsv --net2 ./netalignpack/tests/mouse.tsv --alpha 0.6 --niter 0 --npairs 50 --output ./tmp-aisorank-dir/human-mouse-0-50-0.6.tsv"
+        cmd = "netalign isorank --net1 ./netalign/tests/fly.s.tsv --net2 ./netalign/tests/rat.s.tsv --rblast ./netalign/tests/fly-rat.tsv --alpha 0.6 --niter 0 --npairs 50 --output ./tmp-aisorank-dir/human-mouse-0-50-0.6.tsv"
         self._run_command(cmd)
