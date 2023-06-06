@@ -7,8 +7,12 @@ Citation:
 *** Devkota, K., Cowen, L. J., Blumer, A., & Hu, X. (2023). Fast Approximate IsoRank for Scalable Global Alignment of Biological Networks. bioRxiv, 2023-03. ***
 
 # Table of contents
-1. [Installation](#installation)
-2. [Running Approximate Isorank](#running-approximate-isorank)
+- [Network Alignment using Approximate-Isorank](#network-alignment-using-approximate-isorank)
+- [Table of contents](#table-of-contents)
+  - [Installation](#installation)
+  - [Running Approximate Isorank](#running-approximate-isorank)
+      - [Parameters](#parameters)
+    - [Using Package Functions](#using-package-functions)
 
 ## Installation
 
@@ -28,7 +32,7 @@ After you install the `netalign` package, you can run the approximate isorank co
 netalign isorank --net1 <net1-filename> --net2 <net2-filename> --rblast <rblast-filename> --alpha <alpha-value-float> --niter <no-iterations-int> --npairs <no-of-one-to-one-pairs-int> --output <output-filename>
 ```
 
-### Parameters
+#### Parameters
 1. --net1: The PPI network of the first species. Should be tab delimited without a header. Example name: *mouse.tsv, fly-string.tsv, mouse-intact.filtered.tsv*
 2. --net2: The PPI network of the second species. Should be tab delimited without a header. Follows the same naming conventions as the argument provided by --net1
 3. --rblast: A file that holds the sequence similarity information between the two species. Should be a tab-delimited file and should contain three columns.
@@ -45,3 +49,7 @@ netalign isorank --net1 <net1-filename> --net2 <net2-filename> --rblast <rblast-
 returns the `R1` approximation. If we want to get the true Isorank alignment, set --niter to some value > 10.
 6. --npairs: This parameter decides the number of top one-to-one protein pairs to be outputted by the alignment
 7. --output: The final one-to-one alignment is saved to this output file.
+
+### Using Package Functions
+
+We also provide a notebook example showing how Isorank and its approximations can be used directly in code. See the `notebook` folder.
