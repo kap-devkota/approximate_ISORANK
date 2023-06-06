@@ -52,4 +52,4 @@ returns the `R1` approximation. If we want to get the true Isorank alignment, se
 
 ### Using Package Functions
 
-We also provide a notebook example showing how Isorank and its approximations can be used directly in code. See the `notebook` folder.
+We also provide a notebook example showing how Isorank and its approximations can be used directly in code. See the `notebooks` folder.
