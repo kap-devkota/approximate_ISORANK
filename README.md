@@ -38,11 +38,15 @@ netalign isorank --net1 <net1-filename> --net2 <net2-filename> --rblast <rblast-
 3. --rblast: A file that holds the sequence similarity information between the two species. Should be a tab-delimited file and should contain three columns.
              For example, if the PPI files provided are `--net1 fly-string.tsv --net2 mouse-biogrid.tsv`, the header of the reciprocal blast file should be
              ***fly-mouse.tsv:***
+
              <center>
+             
              | fly-string | mouse-biogrid | score | 
              |------------|:-------------:|------:|
              | Q9VPH0     |   Q8R2G6      | xxx   |
+             
              </center>
+             
              The score should be a floating point number.
 4. --alpha: Isorank parameter, with value between 0 and 1. The recommended value is 0.7
 5. --niter: This parameter decides how close the approximation should be to the true Isorank. If set to 0, this returns the `R0` approximation. If set to 1, this       
