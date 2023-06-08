@@ -1,4 +1,5 @@
 LICENSE
+README.md
 setup.py
 NetworkAlignmentTools.egg-info/PKG-INFO
 NetworkAlignmentTools.egg-info/SOURCES.txt
