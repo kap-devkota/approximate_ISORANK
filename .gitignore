@@ -10,7 +10,8 @@ output*
 
 *.logs
 
-
+FINAL-*
+!FINAL-KDD-16/
 **/.ipynb_checkpoints
 
 
