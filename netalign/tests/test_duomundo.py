@@ -3,7 +3,7 @@ import shutil
 import subprocess as sp
 
 
-class TestAIsorank:
+class TestDuomundo:
     @classmethod
     def setup_class(cls):
         cmd = "python setup.py install"
