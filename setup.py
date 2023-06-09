@@ -27,6 +27,8 @@ setup(
         "seaborn",
         "tqdm",
         "scikit-learn",
-        "networkx"
+        "networkx",
+        "glidetools",
+        "torch"
     ],
 )
