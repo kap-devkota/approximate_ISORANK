@@ -1,26 +1,20 @@
-#!/cluster/tufts/cowenlab/.envs/denoise/bin/python
 from __future__ import annotations
-import sys
-import numpy
 import glidetools.algorithm.dsd as dsd
 import numpy as np
-import sys
 import json
-from scipy.spatial.distance import cdist, pdist, squareform
+from scipy.spatial.distance import pdist, squareform
 from scipy.linalg import pinv
 import argparse
 import os
-from .io_utils import compute_adjacency, compute_pairs
-from .data import Data, CuratedData, PredictData
-from .model import AttentionModel, AttentionModel2, AttentionModel3
+from .io_utils import compute_adjacency
+from .data import CuratedData, PredictData
+from .model import AttentionModel3
 from .isorank import compute_isorank_and_save
 from .predict_score import topk_accs, compute_metric, dsd_func, dsd_func_mundo, scoring_fcn
-from .linalg import compute_k_svd, compute_k_svd_uv
+from .linalg import compute_k_svd_uv
 import re
 import pandas as pd
-from sklearn.manifold import Isomap
 import torch
-import sklearn 
 from sklearn.metrics import average_precision_score, roc_auc_score, precision_recall_curve
 import torch.nn as nn
 from torch.utils.data import DataLoader
