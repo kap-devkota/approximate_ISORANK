@@ -5,7 +5,7 @@ import os
 
 
 def add_args(parser):
-    parser.add_argument("--alpha", type = float, default = 0.5, help = "Final parameter. default value = 0.82")
+    parser.add_argument("--alpha", type = float, default = 0.5, help = "Final parameter. default value = 0.5")
     parser.add_argument("--max_iter", type = int, default = 30, help = "How many iterations to run?")
     parser.add_argument("--tol", type = float, default = 1e-4, help = "Tolerance")
     return parser
@@ -13,11 +13,11 @@ def add_args(parser):
 
 def main(args):
 
-    species = ["fly", "bakers", "human", "rat", "mouse"]
+    species = ["fly", "bakers", "rat", "mouse"] # human
     
-    for i in range(5):
-        for j in range(i):
-            sp1 = species[i]
+    for i in range(1):
+        for j in range(4):
+            sp1 = "human"
             sp2 = species[j]
 
             net1 = f"temp-data/{sp1}.mat"

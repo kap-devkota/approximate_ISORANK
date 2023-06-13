@@ -54,7 +54,19 @@ def main(args):
     dfB[0] = dfB[0].apply(lambda x: nB[x])
     dfB[1] = dfB[1].apply(lambda x: nB[x])
 
-    E = loadmat(f"{FINALLOC}/{spA}-{spB}")[f"{spA}_{spB}"]
+    comb = f"{spA}-{spB}"
+    comb_ = f"{spA}_{spB}"
+    if not os.path.exists(f"{FINALLOC}/{spA}-{spB}.mat"):
+        comb = f"{spB}-{spA}"
+        comb_ = f"{spB}_{spA}"
+    
+    E = loadmat(f"{FINALLOC}/{comb}")[f"{comb_}"].todense()
+    if not os.path.exists(f"{FINALLOC}/{spA}-{spB}.mat"):
+        print("Transposing the matrix...")
+        E = E.T
+    
+    
+    print("Matrix Loaded. Computing greedy alignment...")
     pairs = compute_greedy_assignment(E, 1000)
 
     # slight formatting issue here

@@ -18,9 +18,9 @@ def add_args(parser):
     parser.add_argument("--org2", required = True, help = "Second organism")
     parser.add_argument("--pairs", 
                         type = int, 
-                        default = 1000,
+                        default = 2000,
                         help = "How many pairs to get using greedy search?")
-    parser.add_argument("--output", default = "output.tsv", help = "Output file")
+    parser.add_argument("--output", default = "output_tail.tsv", help = "Output file")
     return parser
 
 
@@ -39,8 +39,11 @@ def main(args):
     dfA = pd.read_csv(f"{spA}.tab", sep = "\t", header = None)
     dfB = pd.read_csv(f"{spB}.tab", sep = "\t", header = None)
 
+    comb = f"{spA}.tab-{spB}.tab.alignment"
+    if not os.path.exists(comb):
+        comb = f"{spB}.tab-{spA}.tab.alignment"
     
-    pairs = pd.read_csv(f"{spA}.tab-{spB}.tab.alignment", sep = " ", header = None).head(10000)
+    pairs = pd.read_csv(comb, sep = " ", header = None).tail(args.pairs)
     pairs = pairs.values
     print(pairs)
 
