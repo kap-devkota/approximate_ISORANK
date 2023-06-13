@@ -26,6 +26,11 @@ def main(args):
     alph  = args.alpha
     lam   = args.lambdap
     simf  = f"{NETFILE}/{spA}-{spB}.tsv"
+    
+    if not os.path.exists(simf):
+        simf = f"{NETFILE}/{spB}-{spA}.tsv"
+    
+    
     tempf = args.tempfolder
     
     if not os.path.exists(tempf):
