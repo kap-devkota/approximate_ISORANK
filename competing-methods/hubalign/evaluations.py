@@ -36,12 +36,13 @@ def main(args):
     annotB = f"{GOLOC}/{spA}.output.mapping.gaf"
     obo = f"{GOLOC}/go-basic.obo"
 
-    df1 = pd.read_csv(f"{spA}.tab", sep = "\t", header = None)
-    df2 = pd.read_csv(f"{spB}.tab", sep = "\t", header = None)
+    dfA = pd.read_csv(f"{spA}.tab", sep = "\t", header = None)
+    dfB = pd.read_csv(f"{spB}.tab", sep = "\t", header = None)
 
     
-    pairs = pd.read_csv("{spA}.tab-{spB}.tab.alignment", sep = "\t", header = None).head(1000)
+    pairs = pd.read_csv(f"{spA}.tab-{spB}.tab.alignment", sep = " ", header = None).head(10000)
     pairs = pairs.values
+    print(pairs)
 
     columns = ["Species A",
                "Species B",
@@ -58,8 +59,8 @@ def main(args):
                lccs(pairs, dfA, dfB),
                symmetric_substructure(pairs, dfA, dfB),
                *[semantic_sim(pairs, 
-                              df1, 
-                              df2, 
+                              dfA, 
+                              dfB, 
                               obofile = obo,
                               annot1file = annotA,
                               annot2file = annotB,
@@ -70,7 +71,7 @@ def main(args):
                                        ]
                             ])]
     df = pd.DataFrame(results, columns=columns)
-    df.to_csv(args.output, mode = "a", index= None, header = not os.path.exists(args.output))
+    df.to_csv(args.output, mode = "a", sep="\t", index= None, header = not os.path.exists(args.output))
 
 
 if __name__ == "__main__":

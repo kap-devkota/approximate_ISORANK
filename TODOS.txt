@@ -1,0 +1,4 @@
+1. Create a plot, overall landmarks on x and try to see how many landmarks are same
+if we use RBLAST compared to using ISORANK.
+
+2. 
