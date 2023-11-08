@@ -1,3 +1,4 @@
+#!/cluster/tufts/cowenlab/.envs/netalign/bin/python
 import argparse
 import pandas as pd
 import numpy as np
@@ -18,7 +19,7 @@ def add_args(parser):
     parser.add_argument("--org2", required = True, help = "Second organism")
     parser.add_argument("--pairs", 
                         type = int, 
-                        default = 1000,
+                        default = 2000,
                         help = "How many pairs to get using greedy search?")
     parser.add_argument("--output", default = "output.tsv", help = "Output file")
     return parser
@@ -33,7 +34,7 @@ def main(args):
     spB = args.org2
 
     annotA = f"{GOLOC}/{spA}.output.mapping.gaf"
-    annotB = f"{GOLOC}/{spA}.output.mapping.gaf"
+    annotB = f"{GOLOC}/{spB}.output.mapping.gaf"
     obo = f"{GOLOC}/go-basic.obo"
 
     df1 = pd.read_csv(f"{DATALOC}/{spA}.s.tsv", sep = "\t", header = None)
@@ -67,7 +68,7 @@ def main(args):
     
     
     print("Matrix Loaded. Computing greedy alignment...")
-    pairs = compute_greedy_assignment(E, 1000)
+    pairs = compute_greedy_assignment(E, args.pairs)
 
     # slight formatting issue here
     pairs = [(i, j[0, 0]) for i, j in pairs]
@@ -99,7 +100,8 @@ def main(args):
                                        "biological_process", 
                                        "cellular_component"
                                        ]
-                            ])]
+                            ]
+               )]
     df = pd.DataFrame(results, columns=columns)
     df.to_csv(args.output, mode = "a", index= None, header = not os.path.exists(args.output))
 

@@ -100,36 +100,6 @@ int main(int argc, char* argv[])
             ostr.close();
         }
         
-        ofstream edgecs("output/net1edges.out");
-        if (edgecs.is_open()) {
-            MapInt2Name& mNm = network1.mNames;
-            float **ew = network1.edgeWeight;
-            
-            // Printing the header
-            edgecs << "\t"; 
-            for (int i = 0; i < mNm.size(); i ++) {
-                string name = mNm[i];
-                if (i == mNm.size() - 1)
-                    edgecs << name;
-                else 
-                    edgecs << name << "\t";
-            }
-            edgecs << std::endl;
-            
-            // Now print the edge contents one by one
-            for (int i = 0; i < mNm.size(); i ++) {
-                edgecs << mNm[i] << "\t";
-                for (int j = 0; j < mNm.size(); j ++) {
-                    if (j == mNm.size() - 1)
-                        edgecs << ew[i][j];
-                    else
-                        edgecs << ew[i][j] << "\t";
-                }
-                edgecs << std::endl;
-            }
-            edgecs.close();
-        }
-        
         /*
         Alignment alignment( network1, network2);
         if(alpha!=1) {

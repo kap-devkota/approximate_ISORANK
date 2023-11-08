@@ -1,0 +1,2 @@
+Species A,Species B,edge correctness,lccs,symmetric_substructure,FC(mf),FC(bp),FC(cc)
+fly,bakers,0.006996819627442072,5,0.0012395962457942271,0.11959558838966806,0.08899071912738236,0.3642328844058738

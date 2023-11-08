@@ -20,7 +20,7 @@ def add_args(parser):
                         type = int, 
                         default = 2000,
                         help = "How many pairs to get using greedy search?")
-    parser.add_argument("--output", default = "output_tail.tsv", help = "Output file")
+    parser.add_argument("--output", default = "temp-data/hubalign_output.tsv", help = "Output file")
     return parser
 
 
@@ -39,28 +39,32 @@ def main(args):
     dfA = pd.read_csv(f"{spA}.tab", sep = "\t", header = None)
     dfB = pd.read_csv(f"{spB}.tab", sep = "\t", header = None)
 
-    comb = f"{spA}.tab-{spB}.tab.alignment"
+    comb = f"eval-files/{spA}-{spB}.alignment"
     if not os.path.exists(comb):
-        comb = f"{spB}.tab-{spA}.tab.alignment"
+        comb = f"eval-files/{spB}-{spA}.alignment"
     
-    pairs = pd.read_csv(comb, sep = " ", header = None).tail(args.pairs)
+    pairs = pd.read_csv(comb, sep = " ", header = None).head(args.pairs)
     pairs = pairs.values
-    print(pairs)
 
     columns = ["Species A",
                "Species B",
-               "edge correctness",
-               "lccs",
-               "symmetric_substructure",
+               # "edge correctness",
+               # "lccs",
+               # "symmetric_substructure",
                "FC(mf)",
                "FC(bp)",
                "FC(cc)"]
     
+    try:
+        ec = compute_edge_correctness(pairs, dfA, dfB)
+    except Exception as e:
+        ec = -1
+    
     results = [(spA,
                spB,
-               compute_edge_correctness(pairs, dfA, dfB),
-               lccs(pairs, dfA, dfB),
-               symmetric_substructure(pairs, dfA, dfB),
+               # ec,
+               # lccs(pairs, dfA, dfB),
+               # symmetric_substructure(pairs, dfA, dfB),
                *[semantic_sim(pairs, 
                               dfA, 
                               dfB, 

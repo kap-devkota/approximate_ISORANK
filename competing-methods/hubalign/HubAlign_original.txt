@@ -1,6 +1,5 @@
 #include "Alignment.h"
 #include <iostream>
-#include <fstream>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +7,6 @@
 
 using namespace std;
 
-typedef map<int, string, less<int> > MapInt2Name;
 exception er;
 
 int main(int argc, char* argv[])
@@ -88,49 +86,9 @@ int main(int argc, char* argv[])
         network1.makeSkeleton(degree);
         network2.makeSkeleton(degree);
         
-        ofstream ostr("output/net1nodescore.out");
-        if (ostr.is_open()) {
-            MapInt2Name& mNm = network1.mNames;
-            float *nw = network1.nodeWeight;
-            for (int i = 0; i < mNm.size(); i ++) {
-                string name = mNm[i];
-                float nwt = nw[i];
-                ostr << name << "\t" << nwt << std::endl;
-            }
-            ostr.close();
-        }
         
-        ofstream edgecs("output/net1edges.out");
-        if (edgecs.is_open()) {
-            MapInt2Name& mNm = network1.mNames;
-            float **ew = network1.edgeWeight;
-            
-            // Printing the header
-            edgecs << "\t"; 
-            for (int i = 0; i < mNm.size(); i ++) {
-                string name = mNm[i];
-                if (i == mNm.size() - 1)
-                    edgecs << name;
-                else 
-                    edgecs << name << "\t";
-            }
-            edgecs << std::endl;
-            
-            // Now print the edge contents one by one
-            for (int i = 0; i < mNm.size(); i ++) {
-                edgecs << mNm[i] << "\t";
-                for (int j = 0; j < mNm.size(); j ++) {
-                    if (j == mNm.size() - 1)
-                        edgecs << ew[i][j];
-                    else
-                        edgecs << ew[i][j] << "\t";
-                }
-                edgecs << std::endl;
-            }
-            edgecs.close();
-        }
         
-        /*
+        //align two networks with each other
         Alignment alignment( network1, network2);
         if(alpha!=1) {
             alignment.readblast(blastFile);
@@ -138,11 +96,12 @@ int main(int argc, char* argv[])
         
         alignment.align(lambda, alpha);
         
+		//making the name for output file
         stringstream strm;
         strm << name1 << "-" << name2;
         alignment.outputEvaluation(strm.str());
         alignment.outputAlignment(strm.str());
-        */
+        
     }
 	catch(exception &e)
 	{

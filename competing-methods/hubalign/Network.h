@@ -15,9 +15,9 @@ class Network
 	typedef map<int, list<int>, less<int> > MapInt2List;
 	typedef map<int, string, less<int> > MapInt2Name;
 
-	MapInt2Name mNames;
     
 public:
+	MapInt2Name mNames;
     MapString2Int mapName;
 
 	int **neighbor; //neighbor of each node of the network
