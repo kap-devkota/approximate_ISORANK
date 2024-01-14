@@ -55,7 +55,7 @@ def main(args):
                         Af2, 
                         E, 
                         alpha=args.alpha, 
-                        maxiter = args.niter)
+                        maxiter = args.niter)[-1]
 
     
     print("Computing pairs...")
