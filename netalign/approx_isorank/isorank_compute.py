@@ -56,7 +56,7 @@ def compute_isorank(A1, A2, E, alpha, maxiter = 20, get_R0 = False, get_R1 = Fal
     R = (1-alpha) * d + alpha * E
     
     if maxiter <= 0:
-        return R
+        return [R]
     
     if get_R0:
         R0 = R.copy()
