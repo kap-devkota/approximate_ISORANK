@@ -16,7 +16,8 @@ def compute_adjacency(df, nodemap = None):
 
 def compute_pairs(df, nmapA, nmapB, orgA, orgB):
     df = df.loc[:, [orgA, orgB, "score"]]
-    
+    df = df.loc[df[orgA].apply(lambda x : x in nmapA) & df[orgB].apply(lambda x : x in nmapB)
+        , :]
     df[orgA] = df[orgA].apply(lambda x: nmapA[x])
     df[orgB] = df[orgB].apply(lambda x: nmapB[x])
     print(df)
