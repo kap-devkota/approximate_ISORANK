@@ -67,11 +67,11 @@ def compute_metric(prediction_func, scoring_func, allprots, true_go_map, kfold =
 
 
 def predict_dsd(D_mat, train_go_maps, k = 10):
-    predprot = [x for x in train_go_maps if train_go_maps[x] == -1]
-    D_mat1 = D_mat.copy()
-    D_mat1[range(len(D_mat)), range(len(D_mat))] = np.inf
+    predprot = [x for x in train_go_maps if train_go_maps[x] == -1] # these are the test sets
+    D_mat1 = D_mat.copy() 
+    D_mat1[range(len(D_mat)), range(len(D_mat))] = np.inf # set the diagonal entries to infinity, so that the argsort will not place the diagonal entries at the start
     D_mat1[:, predprot] = np.inf
-    sortedD = np.argsort(D_mat1, axis = 1)[:, 1:k+1]
+    sortedD = np.argsort(D_mat1, axis = 1)[:, :k] # fixed here
     def vote(neighbors, go_maps):
         gos = {}
         for n in neighbors:
@@ -89,10 +89,10 @@ def predict_dsd_mundo(D_mat, D_other_species, train_go_maps, go_other, k = 10, k
     predprot = [x for x in train_go_maps if train_go_maps[x] == -1]
     D_mat1 = D_mat.copy()
     D_other = D_other_species.copy()
-    D_mat1[range(len(D_mat)), range(len(D_mat))] = np.inf
+    D_mat1[range(len(D_mat)), range(len(D_mat))] = np.inf # set the diagonal entries to infinity, so the argsort will not place the diagonal entries at the start
     D_mat1[:, predprot] = np.inf
-    sortedD = np.argsort(D_mat1, axis = 1)[:, 1: k+1]
-    sortedDoth = np.argsort(D_other, axis = 1)[:, 1: k_other+1]
+    sortedD = np.argsort(D_mat1, axis = 1)[:, : k]  # fixed here
+    sortedDoth = np.argsort(D_other, axis = 1)[:, : k_other]  # fixed here
     def vote(neighbors, oth_neighbors,  go_maps):
         gos = {}
         for n in neighbors:
