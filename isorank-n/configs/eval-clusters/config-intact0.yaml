@@ -1,0 +1,12 @@
+networkfolder: "data/intact"
+gofolder: "data/go"
+species: 
+    - "fly"
+    - "mouse"
+    - "rat" 
+    - "bakers"
+beta: 0.01
+gamma: 0.25
+r_iter: 10
+isorank_alpha: 0.6
+output_cluster: "data/clusters/R0-intact-cluster-0.6.pkl"
