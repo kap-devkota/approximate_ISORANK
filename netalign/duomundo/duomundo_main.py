@@ -1,17 +1,21 @@
+#!/cluster/tufts/cowenlab/.envs/netalign/bin/python
 from __future__ import annotations
+import sys
+
+#sys.path.append("approximate_ISORANK/netalign/duomundo")
 import glidetools.algorithm.dsd as dsd
 import numpy as np
 import json
 from scipy.spatial.distance import pdist, squareform
-from scipy.linalg import pinv
+from scipy.linalg import pinv, svd
 import argparse
 import os
-from .io_utils import compute_adjacency
+from io_utils import compute_adjacency
 from .data import CuratedData, PredictData
-from .model import AttentionModel3
-from .isorank import compute_isorank_and_save
-from .predict_score import topk_accs, compute_metric, dsd_func, dsd_func_mundo, scoring_fcn
-from .linalg import compute_k_svd_uv
+from model import AttentionModel3
+from isorank import isorank, compute_greedy_assignment
+from predict_score import topk_accs, compute_metric, dsd_func, dsd_func_mundo, scoring_fcn
+from linalg import compute_k_svd_uv
 import re
 import pandas as pd
 import torch
@@ -19,108 +23,56 @@ from sklearn.metrics import average_precision_score, roc_auc_score, precision_re
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from typing import Callable, NamedTuple, Optional
+import yaml
+import networkx as nx
+import pickle as pkl
 
 
-class DuoMundoArgs(NamedTuple):
-    cmd: str
-    ppiA: str
-    nameA: str
-    nameB: str
-    dsd_A_dist: Optional[str]
-    dsd_B_dist: Optional[str]
-    thres_dsd_dist: Optional[str]
-    json_A: Optional[str]
-    json_B: Optional[str]
-    svd_AU: Optional[str]
-    svd_AV: Optional[str]
-    svd_BU: Optional[str]
-    svd_BV: Optional[str]
-    svd_r: Optional[int]
-    landmarks_a_b: Optional[str]
-    compute_isorank: Optional[bool]
-    isorank_alpha: Optional[float]
-    no_landmarks: Optional[int]
-    model: Optional[str]
-    svd_dist_a_b: Optional[str]
-    weight_decay: Optional[float]
-    no_epoch: Optional[int]
-    compute_go_eval: Optional[bool]
-    kA: Optional[str]
-    kB: Optional[str]
-    metrics: Optional[str]
-    wB: Optional[str]
-    output_file: Optional[str]
-    compute_dsd: Optional[str]
-    go_A: Optional[str]
-    go_B: Optional[str]
-    go_h: Optional[str]
-    munkonly: Optional[bool]
-    seed: Optional[int]
-    func: Callable[[DuoMundoArgs], None]
-        
-        
-def add_args(parser):
-    
-    # PPI
-    parser.add_argument("--ppiA", help = "PPI for species A: (target)")
-    parser.add_argument("--ppiB", help = "PPI for species B: (source)")
-    parser.add_argument("--nameA", help = "Name of species A")
-    parser.add_argument("--nameB", help = "Name of species B")
-    
-    # DSD
-    parser.add_argument("--dsd_A_dist", default = None, help = "Precomputed DSD distance for Species A. If not present, the matrix will be computed at this location")
-    parser.add_argument("--dsd_B_dist", default = None, help = "Precomputed DSD distance for Species B. If not present, the matrix will be computed at this location")
-    parser.add_argument("--thres_dsd_dist", type = float, default = 100, help = "If the DSD distance computed is > this threshold, replace that with the threshold")
-    
-    # JSON
-    parser.add_argument("--json_A", default = None, help = "Protein annotation to Matrix index in json format for DSD and SVD matrix of A. If not present, the JSON file will be computed at this location")
-    parser.add_argument("--json_B", default = None, help = "Protein annotation to Matrix index in json format for DSD and SVD matrix of B. If not present, the JSON file will be computed at this location")
-    
-    # SVD
-    parser.add_argument("--svd_AU", default = None, help = "Left SVD representation of the species A. If not present, the SVD representation will be produced at this location")
-    parser.add_argument("--svd_BU", default = None, help = "Left SVD representation of the species B. If not present, the SVD representation will be produced at this location")
-    parser.add_argument("--svd_AV", default = None, help = "Right SVD representation of the species A. If not present, the SVD representation will be produced at this location")
-    parser.add_argument("--svd_BV", default = None, help = "Right SVD representation of the species B. If not present, the SVD representation will be produced at this location")
-    
-    parser.add_argument("--svd_r", default = 100, type = int, help = "SVD default dimension")
-    
-    # ISORANK
-    parser.add_argument("--landmarks_a_b", default = None, help = "the tsv file with format: `protA  protB  [score]`. Where protA is from speciesA and protB from speciesB")
-    parser.add_argument("--compute_isorank", action = "store_true", default = False, help = "If true, then the landmarks tsv file is a sequence map obtained from Reciprocal BLAST and we need to compute isorank. If false, then the landmark file is a precomputed isorank mapping. This computed isorank matrix is then saved to the file {landmarks_a_b}_{alpha}.tsv")
-    parser.add_argument("--isorank_alpha", type = float, default = 0.7)
-    parser.add_argument("--no_landmarks", type = int, default = 500, help = "How many ISORANK mappings to use for MUNK?")
-    # MODEL
-    parser.add_argument("--model", default = None, help = "Location of the trained model. If not provided, the trained model is saved at this location")
-    parser.add_argument("--svd_dist_a_b", default = None, help = "Location of the SVD COSINE distance between A and transformed B. If not present, the distance will be created at this location")
-    parser.add_argument("--weight_decay", default=0, type = float, help = "Weight decay for the model")
-    parser.add_argument("--no_epoch", default = 20, type = int, help = "The number of epochs")
-    
-    # Evaluation
-    parser.add_argument("--compute_go_eval", default = False, action = "store_true", help = "Compute GO functional evaluation on the model?")
-    parser.add_argument("--kA", default = "10,15,20,25,30", help = "Comma seperated values of kA to test")
-    parser.add_argument("--kB", default = "10,15,20,25,30", help = "Comma seperated values of kB to test")
-    parser.add_argument("--metrics", default="top-1-acc,aupr,f1max", help = "Comma separated metrics to test on")
-    parser.add_argument("--wB", default = 0.4, type = float)
-    parser.add_argument("--output_file", help = "Output tsv scores file")
-    parser.add_argument("--compute_dsd", help = "Compute the DSD file", action = "store_true", default = False)
-    
-    # GO files
-    parser.add_argument("--go_A", default = None, help = "GO files for species A in TSV format")
-    parser.add_argument("--go_B", default = None, help = "GO files for species B in TSV format")
-    parser.add_argument("--go_h", default = "molecular_function,biological_process,cellular_component", help = "Which of the three GO hierarchies to use, in comma separated format?")
-    parser.add_argument("--munkonly", default = False, action = "store_true")
-    
-    parser.add_argument("--seed", default = 121, type = int)
-    return parser
+class Config:
+    def __init__(self, cfile):
+        with open(cfile, "r") as cfl:
+            config = yaml.safe_load(cfl)
+        self.__dict__.update(config)
+        self.ppiAfile = f"{self.netfolder}/{self.speciesA}.s.tsv"
+        self.ppiBfile = f"{self.netfolder}/{self.speciesB}.s.tsv"
+        self.dsdAfile = f"{self.tempfolder}/{self.speciesA}.dsd.pkl"
+        self.dsdBfile = f"{self.tempfolder}/{self.speciesB}.dsd.pkl"
+        self.svdAfile = f"{self.tempfolder}/{self.speciesA}.svd.pkl"
+        self.svdBfile = f"{self.tempfolder}/{self.speciesB}.svd.pkl"
+        self.goAfile = f"{self.gofolder}/{self.speciesA}.output.mapping.gaf"
+        self.goBfile = f"{self.gofolder}/{self.speciesB}.output.mapping.gaf"
+        self.svd_dist_a_b = f"{self.tempfolder}/t_svd_{self.svd_r}_{self.speciesA}-{self.speciesB}.svd.pkl"
+        self.isorankfile = f"{self.tempfolder}/{self.speciesA}-{self.speciesB}_alpha_{self.isorank_alpha}_N_{self.no_landmarks}.isorank.tsv"
+        self.matchfile = f"{self.netfolder}/{self.speciesA}-{self.speciesB}.tsv"
+        if not os.path.exists(self.matchfile):
+            self.matchfile = f"{self.netfolder}/{self.speciesB}-{self.speciesA}.tsv"
+        self.modelfile = f"{self.tempfolder}/{self.speciesA}-{self.speciesB}_lr_{self.lr}_ep_{self.no_epoch}.model.pt"
+        return
 
 
-def get_scoring(metric, all_go_labels = None, **kwargs):
+def compute_pairs(df, nmapA, nmapB, config):
+    df = df.loc[:, [config.speciesA, config.speciesB, "score"]]
+
+    df[config.speciesA] = df[config.speciesA].apply(lambda x: nmapA[x])
+    df[config.speciesB] = df[config.speciesB].apply(lambda x: nmapB[x])
+
+    m, n = len(nmapA), len(nmapB)
+    E = np.zeros((m, n))
+
+    for p, q, v in df.values:
+        E[int(p + 0.25), int(q + 0.25)] = v
+    return E
+
+
+def get_scoring(metric, all_go_labels=None, **kwargs):
     acc = re.compile(r'top-([0-9]+)-acc')
     match_acc = acc.match(metric)
     if match_acc:
         k = int(match_acc.group(1))
+
         def score(prots, pred_go_map, true_go_map):
-            return topk_accs(prots, pred_go_map, true_go_map, k = k)
+            return topk_accs(prots, pred_go_map, true_go_map, k=k)
+
         return score
     else:
         if metric == "aupr":
@@ -132,168 +84,215 @@ def get_scoring(metric, all_go_labels = None, **kwargs):
                 pre, rec, _ = precision_recall_curve(true, pred)
                 f1 = (2 * pre * rec) / (pre + rec + 1e-7)
                 return np.max(f1)
+
             met = f1max
         sfunc = scoring_fcn(all_go_labels, met, **kwargs)
     return sfunc
 
 
+def compute_isorank_and_save(Aa, Ab, mapA, mapB, config):
+    rmapA = {v: k for k, v in mapA.items()}
+    rmapB = {v: k for k, v in mapB.items()}
 
-def compute_dsd_dist(ppifile, dsdfile, jsonfile, threshold = -1, **kwargs):
-    assert (os.path.exists(ppifile)) or (os.path.exists(dsdfile) and os.path.exists(jsonfile))
-    print(f"[!] {kwargs['msg']}")
+    pdmatch = pd.read_csv(config.matchfile, sep="\t")
+    pdmatch = pdmatch.loc[
+              pdmatch[config.speciesA].apply(lambda x: x in mapA) & pdmatch[config.speciesB].apply(lambda x: x in mapB),
+              :]
+
+    print(f"[!!] \tSize of the matchfile: {len(pdmatch)}")
+
+    E = compute_pairs(pdmatch, mapA,
+                      mapB, config)
+
+    R0 = isorank(Aa, Ab, E, config.isorank_alpha, maxiter=-1)
+    align = compute_greedy_assignment(R0, config.no_landmarks)
+    aligndf = pd.DataFrame(align, columns=[config.speciesA, config.speciesB])
+    aligndf.iloc[:, 0] = aligndf.iloc[:, 0].apply(lambda x: rmapA[x])
+    aligndf.iloc[:, 1] = aligndf.iloc[:, 1].apply(lambda x: rmapB[x])
+    aligndf.to_csv(config.isorankfile, sep="\t", index=None)
+    return
+
+
+def compute_dsd_dist(config, ppifile, dsdfile):
     if dsdfile is not None and os.path.exists(dsdfile):
-        print(f"[!!] \tAlready computed!")
-        DSDdist = np.load(dsdfile)
-        if threshold > 0:
-            DSDdist = np.where(DSDdist > threshold, threshold, DSDdist)
-        with open(jsonfile, "r") as jf:
-            protmap = json.load(jf)
-        return DSDdist, protmap
+        print(f"DSD file already computed <- {dsdfile}")
+        with open(dsdfile, "rb") as cfdsd:
+            package = pkl.load(cfdsd)
+            DSDdist = package["dsd_dist"]
+            protmap = package["json"]
+            Asub = package["A"]
+        if config.dsd_threshold > 0:
+            DSDdist = np.where(DSDdist > config.dsd_threshold,
+                               config.dsd_threshold,
+                               DSDdist)
+        return DSDdist, Asub, protmap
     else:
-        ppdf = pd.read_csv(ppifile, sep = "\t", header = None)
-        Ap, protmap = compute_adjacency(ppdf)
-        if jsonfile is not None:
-            with open(jsonfile, "w") as jf:
-                json.dump(protmap, jf)                
-        DSDemb = dsd.compute_dsd_embedding(Ap, is_normalized = False)
+        print(f"Computing DSD file -> {dsdfile}")
+        ppdf = pd.read_csv(ppifile, sep="\t", header=None)
+        Gpp = nx.from_pandas_edgelist(ppdf, source=0,
+                                      target=1)
+        ccs = max(nx.connected_components(Gpp), key=len)
+        Gpps = Gpp.subgraph(ccs)
+        Asub = nx.to_numpy_array(Gpps)
+        protmap = {k: i for i, k in enumerate(list(Gpps.nodes))}
+        DSDemb = dsd.compute_dsd_embedding(Asub,
+                                           is_normalized=False)
         DSDdist = squareform(pdist(DSDemb))
-        if dsdfile is not None:
-            np.save(dsdfile, DSDdist)
-        if threshold > 0:
-            DSDdist = np.where(DSDdist > threshold, threshold, DSDdist)
-        return DSDdist, protmap
-    
-    
-# SVD FILE
-def compute_svd(svdufile, svdvfile, dsddist, svd_r = 100, **kwargs):
-    assert (os.path.exists(svdufile) and os.path.exists(svdvfile)) or dsddist is not None
-    print(f"[!] {kwargs['msg']}")
-    if os.path.exists(svdufile):
-        print(f"[!!] \tAlready computed!")
-        SVDUemb = np.load(svdufile)
-        SVDVemb = np.load(svdvfile)
-        
-        # Row sort
-        UVrowsum  = np.absolute(np.sum(SVDUemb, axis = 0))
-        UVrowsort = np.argsort(-UVrowsum)
-        SVDUemb  = SVDUemb[:, UVrowsort[:svd_r]]
-        SVDVemb  = SVDVemb[:, UVrowsort[:svd_r]]
-        print(np.sort(-np.absolute(UVrowsum))[:500])
-        
-        return SVDUemb[:, :svd_r], SVDVemb[:, :svd_r]
-    else:
-        SVDUemb, SVDVemb = compute_k_svd_uv(dsddist)
-        if svdufile is not None:
-            np.save(svdufile, SVDUemb)
-        if svdvfile is not None:
-            np.save(svdvfile, SVDVemb)
-        return SVDUemb[:, :svd_r], SVDVemb[:, :svd_r]
+        if config.dsd_threshold > 0:
+            DSDdist = np.where(DSDdist > config.dsd_threshold,
+                               config.dsd_threshold, DSDdist)
+        with open(dsdfile, "wb") as cfdsd:
+            pkl.dump({
+                "A": Asub,
+                "dsd_dist": DSDdist,
+                "dsd_emb": DSDemb,
+                "json": protmap
+            }, cfdsd)
+        return DSDdist, Asub, protmap
 
-def linear_munk(svdAU, svdAV, svdBU, no_matches, isorankfile, mapA, mapB):
+
+# SVD FILE
+def compute_svd(config, svdfile, dsddist, protmap):
+    if os.path.exists(svdfile):
+        print(f"SVD files already computed <- {svdfile}")
+        with open(svdfile, "rb") as svdf:
+            package = pkl.load(svdf)
+            U = package["U"]
+            V = package["V"]
+            s = package["s"]
+        U = U[:, :config.svd_r]
+        V = V[:config.svd_r, :]
+        s = s[:config.svd_r]
+        ssqrt = np.sqrt(s)
+        Ud = U * ssqrt[None, :]  # [n, svd]
+        Vd = V * ssqrt[:, None]  # [svd, n]
+        return Ud, Vd
+    else:
+        print(f"Computing the SVD file -> {svdfile}")
+        U, s, V = svd(dsddist)
+        with open(svdfile, "wb") as svdf:
+            pkl.dump(
+                {
+                    "U": U,
+                    "V": V,
+                    "s": s,
+                    "json": protmap
+                }, svdf)
+        U = U[:, :config.svd_r]
+        V = V[:config.svd_r, :]
+        s = s[:config.svd_r]
+        ssqrt = np.sqrt(s)
+        Ud = U * ssqrt[None, :]
+        Vd = V * ssqrt[:, None]
+        return Ud, Vd
+
+
+def linear_munk(config, Ua, Va, Ub,
+                mapA, mapB, isorank_file, printOut=True):
     """
-    svdA = nA x d
-    svdB = nB x d
+    dim T = [svd_dim, svd_dim]
+    dim Ub_L = dim Ua_L = [no_landmarks, svd_dim]
+    Da = Ua Va
+    Ub_L -> Ua_L
+    T^* = \min_T \| Ub_L @ T - Ua_L\|_2
+    T^* = {Ub_L}^{\dagger} @ Ua_L
+    Ub->a = Ub @ T^* = Ub @ {Ub_L}^{\dagger} @ Ua_L
+    munk = Ub->a @ Va
     """
-    df = pd.read_csv(isorankfile, sep = "\t")
-    df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x : mapA[x])
-    df.iloc[:, 1] = df.iloc[:, 1].apply(lambda x : mapB[x])
-    
-    # Matches for MUNK, matches_train for the model
-    matches = df.loc[:no_matches, :].values
-    
-    svdAU_l  = svdAU[matches[:, 0]] # match x d
-    svdBU_l  = svdBU[matches[:, 1]] # match x d
-    tb_to_a  = svdBU @ pinv(svdBU_l) @ svdAU_l # [nB, d] @ [d , match] @ [match, d]
-    munk     =  svdAV @ tb_to_a.T # [nA, d] @ [d, nB] = [nA, nB]
-    # y = Ax  + nonlinear
-    # y = mod(x)
-    # y = Ax + mod(x)
-    # input = x, expected = y - Ax
-    loss = svdAU_l #- tb_to_a[matches[:, 1]]
-    return munk, loss, svdBU_l
-    
-     
-    
-def train_model_and_project(modelfile, svdAU, svdAV, svdBU, isorankfile, no_matches, protAmap, protBmap, no_matches_train = None, **kwargs):
-    # B is moved to A
-    
-    assert os.path.exists(modelfile) or (svdAU is not None and svdBU is not None 
-                                         and svdAV is not None)
-    if no_matches_train == None:
-        no_matches_train = no_matches
-        
-    munk, loss, svdBU_l = linear_munk(svdAU, svdAV, 
-                                    svdBU,
-                                    no_matches,
-                                    isorankfile,
-                                    protAmap,
-                                    protBmap)
-    
-    if "munkonly" in kwargs and kwargs["munkonly"]:
+    df = pd.read_csv(isorank_file, sep="\t")
+    df.iloc[:, 0] = df.iloc[:, 0].apply(lambda x: mapA[x])
+    df.iloc[:, 1] = df.iloc[:, 1].apply(lambda x: mapB[x])
+
+    matches = df.loc[:config.no_landmarks, :].values
+    matchesA = list(matches[:, 0])
+    matchesB = list(matches[:, 1])
+    Ua_l = Ua[matchesA, :]
+    Ub_l = Ub[matchesB, :]
+
+    Ub_lpinv = compute_pinv(Ub_l)
+
+    Tb_to_a = Ub @ Ub_lpinv @ Ua_l  # Ub -> [nB, 100]
+    munk = Tb_to_a @ Va  # [similarity == Unstable]
+    munk = munk.T  # to make row = entries corresponding to species A (target)
+
+    loss = Ua_l
+    return munk, loss, Ub_l
+
+
+def compute_pinv(T, epsilon=1e-4):
+    U, s, V = svd(T)
+    s = s + epsilon
+    sinv = 1 / s
+    Uupdated = U @ np.diag(s) @ V
+    Uinv = V.T @ np.diag(sinv) @ U.T
+    print(Uupdated @ Uinv, np.linalg.cond(Uinv))
+    return Uinv
+
+
+def train_model_and_project(config, Ua, Va, Ub,
+                            mapA, mapB, isorank_file):
+    munk, loss, Ub_l = linear_munk(config, Ua, Va,
+                                   Ub, mapA, mapB, isorank_file)
+    if hasattr(config, "munkonly") and config.munkonly:
         return munk
-    
-    pdata = PredictData(svdBU)
-    predictloader = DataLoader(pdata, shuffle = False, batch_size = 10)
-    #svdBUtorch = torch.tensor(svdBU, dtype = torch.float32).unsqueeze(-1)
-    print(f"[!] {kwargs['msg']}")
-    if os.path.exists(modelfile):
-        model = torch.load(modelfile, map_location = "cpu")
+    pdata = PredictData(Ub)
+    predictloader = DataLoader(pdata, shuffle=False, batch_size=10)
+    if os.path.exists(config.modelfile):
+        model = torch.load(config.modelfile, map_location="cpu")
         model.eval()
         with torch.no_grad():
             svdBnls = []
             for j, data in enumerate(predictloader):
-                segment = data # [batch, seq, 1]
+                segment = data
                 svdBnls.append(model(segment).squeeze(-1).detach().numpy())
-            svdBnl = np.concatenate(svdBnls, axis = 0)
-            addterm = svdAV @ svdBnl.T
-            print(f"[!!!] MUNK contribution : {np.linalg.norm(munk)}, Deep nn contribution: {np.linalg.norm(addterm)}")
-            return 0.0000001 * munk + addterm
+            svdBnl = np.concatenate(svdBnls, axis=0)
+            modelsim = (svdBnl @ Va).T
+            print(f"modelsim: {modelsim}")
+            return modelsim
     else:
-        data = CuratedData(loss, svdBU_l) #y, x 
-        trainloader = DataLoader(data, shuffle = True, batch_size = 10)
-        
+        data = CuratedData(loss, Ub_l)
+        trainloader = DataLoader(data, shuffle=True, batch_size=10)
         loss_fn = nn.MSELoss()
-        model = AttentionModel3(svd_dim = svdAU.shape[1])
+        model = AttentionModel3(svd_dim=Ua.shape[1])
         model.train()
-        optim = torch.optim.Adam(model.parameters(), 
-                                 lr = 0.0005,
-                                weight_decay = kwargs["weight_decay"])
-        ep = kwargs["no_epoch"]
-        print(f"[!]\t Training the Attention Model:")
+        optim = torch.optim.Adam(model.parameters(),
+                                 lr=config.lr,
+                                 weight_decay=config.weight_decay)
+        ep = config.no_epoch
+        print(f"Training...")
         for e in range(ep):
             loss = 0
             for i, data in enumerate(trainloader):
-                y, x = data # y is the embedding for species A (target). x is the embedding for species B (source). Model here moves source to target.
+                y, x = data
                 optim.zero_grad()
                 yhat = model(x)
                 closs = loss_fn(y, yhat)
                 closs.backward()
                 optim.step()
                 loss += closs.item()
-            loss = loss / (i+1)
-            print(f"[!]\t\t Epoch {e+1}: Loss : {loss}")
-        if modelfile is not None:
-            torch.save(model, modelfile)
+            loss = loss / (i + 1)
+            print(f"\t Epoch {e + 1}: Loss : {loss}")
+        if config.modelfile is not None:
+            torch.save(model, config.modelfile)
         model.eval()
         with torch.no_grad():
-            # model here transforms the complete source to target
-            svdBnls = [] 
+            svdBnls = []
             for j, data in enumerate(predictloader):
-                segment = data # [batch, seq, 1]
+                segment = model(data)
                 svdBnls.append(model(segment).squeeze(-1).detach().numpy())
-            svdBnl = np.concatenate(svdBnls, axis = 0)
-            addterm = svdAV @ svdBnl.T
-            print(f"[!!!] MUNK contribution : {np.linalg.norm(munk)}, Deep nn contribution: {np.linalg.norm(addterm)}")
-            return 0.000001 * munk + addterm
+            svdBnl = np.concatenate(svdBnls, axis=0)
+            modelsim = (svdBnl @ Va).T
+            return modelsim
 
-    
-def get_go_maps(nmap, gofile, gotype):
+
+def get_go_maps(gofile, nmap, gotype):
     """
-    Get the GO maps
+    If there is go label, return that go label into the set
+    else return an empty set
     """
-    df = pd.read_csv(gofile, sep = "\t")
+    df = pd.read_csv(gofile, sep="\t")
     df = df.loc[df["type"] == gotype]
-    gomaps = df.loc[:, ["GO", "swissprot"]].groupby("swissprot", as_index = False).aggregate(list)
+    gomaps = df.loc[:, ["GO", "swissprot"]].groupby("swissprot", as_index=False).aggregate(list)
     gomaps = gomaps.values
     go_outs = {}
     all_gos = set()
@@ -305,99 +304,84 @@ def get_go_maps(nmap, gofile, gotype):
         if i not in go_outs:
             go_outs[i] = {}
     return go_outs, all_gos
-    
-def main(args):
+
+
+def main(config):
     """
     Main function
     """
-    DSDA, nmapA = compute_dsd_dist(args.ppiA, args.dsd_A_dist, args.json_A, threshold = 10,
-                                  msg = "Running DSD distance for Species A")
-    DSDB, nmapB = compute_dsd_dist(args.ppiB, args.dsd_B_dist, args.json_B, threshold = 10,
-                                  msg = "Running DSD distance for Species B")
-    
-    SVDAU, SVDAV = compute_svd(args.svd_AU, args.svd_AV, DSDA, svd_r = args.svd_r, 
-                      msg = "Computing the SVD embeddings from the DSD distances for Species A")
-    SVDBU, SVDBV = compute_svd(args.svd_BU, args.svd_BV, DSDB, svd_r = args.svd_r, 
-                      msg = "Computing the SVD embeddings from the DSD distances for Species B")
-    
-    if args.svd_dist_a_b is not None and os.path.exists(args.svd_dist_a_b):
-        print("[!] SVD transformed distances between species A and B already computed")
-        DISTS = np.load(args.svd_dist_a_b)
+    DSDA, Aa, nmapA = compute_dsd_dist(config, config.ppiAfile, config.dsdAfile)
+    DSDB, Ab, nmapB = compute_dsd_dist(config, config.ppiBfile, config.dsdBfile)
+
+    SVDAU, SVDAV = compute_svd(config, config.svdAfile, DSDA, nmapA)
+    SVDBU, SVDBV = compute_svd(config, config.svdBfile, DSDB, nmapB)
+    if config.svd_dist_a_b is not None and os.path.exists(config.svd_dist_a_b):
+        print("SVD transformed distances between species A and B already computed")
+        with open(config.svd_dist_a_b, "rb") as svdf:
+            package = pkl.load(svdf)
+            DISTS = package["SVD-A->B"]
     else:
-        isorank_file = f"{args.nameA}_{args.nameB}_isorank_alpha_{args.isorank_alpha}_N_{args.no_landmarks}.tsv"
-        print(f"[!] Looking for the file {isorank_file}: {os.path.exists(isorank_file)}")
-        if args.compute_isorank and not os.path.exists(isorank_file):
-            compute_isorank_and_save(args.ppiA, 
-                                     args.ppiB, 
-                                     args.nameA, 
-                                     args.nameB,
-                                     matchfile = args.landmarks_a_b,
-                                     alpha = args.isorank_alpha,
-                                     n_align = args.no_landmarks, 
-                                     save_loc = isorank_file,
-                                     msg = "Running ISORANK.")
-        elif not args.compute_isorank:
-            isorank_file = args.landmarks_a_b
-        train_kwargs = {"no_epoch" : args.no_epoch, 
-                        "weight_decay" : args.weight_decay}
-        
-        DISTS = train_model_and_project(args.model, 
-                                         SVDAU, SVDAV, SVDBU, isorank_file, 
-                                         args.no_landmarks, 
-                                         nmapA, nmapB, 
-                                         msg = "Training the Attention Model and Computing the distances",
-                                        munkonly = args.munkonly,
-                                        **train_kwargs)
-        
-        if args.svd_dist_a_b is not None:
-            np.save(args.svd_dist_a_b, DISTS)
-            
+        if config.compute_isorank and not os.path.exists(config.isorankfile):
+            print("Computing ISORANK")
+            compute_isorank_and_save(Aa, Ab, nmapA, nmapB, config)
+            isorank_file = config.isorankfile
+        elif os.path.exists(config.isorankfile):
+            isorank_file = config.isorankfile
+        elif not config.compute_isorank:
+            isorank_file = config.matchfile
+        DISTS = train_model_and_project(config,
+                                        SVDAU, SVDAV, SVDBU,
+                                        nmapA, nmapB, isorank_file)
+        if config.svd_dist_a_b is not None:
+            np.save(config.svd_dist_a_b, DISTS)
+
     results = []
-    #settings: nameA, nameB, SVD_emb, landmark, gotype, topkacc, dsd/mundo?, kA, kB, 
-    
-    settings = [args.nameA, args.nameB, args.svd_r, args.no_landmarks] 
-    if args.compute_go_eval:
-        """
-        Perform evaluations
-        """
-        kAs = [int(k) for k in args.kA.split(",")]
-        kBs = [int(k) for k in args.kB.split(",")]
-        gos = args.go_h.split(",")
+    # settings: nameA, nameB, SVD_emb, landmark, gotype, topkacc, dsd/mundo?, kA, kB, 
+    settings = [config.speciesA, config.speciesB, config.svd_r, config.no_landmarks]
+
+    if config.compute_go_eval:
+        # Perform evaluations
+        # go_
+        kAs = [int(k) for k in config.kA]
+        kBs = [int(k) for k in config.kB]
+        gos = config.gos
         gomapsA = {}
         gomapsB = {}
         for go in gos:
-            gomapsA[go], golabelsA = get_go_maps(nmapA, args.go_A, go)
-            gomapsB[go], golabelsB = get_go_maps(nmapB, args.go_B, go)
+            gomapsA[go], golabelsA = get_go_maps(config.goAfile, nmapA, go)
+            gomapsB[go], golabelsB = get_go_maps(config.goBfile, nmapB, go)
             golabels = golabelsA.union(golabelsB)
             print(f"GO count: {go} ---- {len(golabels)}")
-            for metric in args.metrics.split(","):
+            for metric in config.metrics:
                 score = get_scoring(metric, golabels)
                 for kA in kAs:
-                    if args.compute_dsd:
+                    if config.score_dsd:
                         settings_dsd = settings + [go, metric, "dsd-knn", kA, -1]
-                        scores, _ = compute_metric(dsd_func(DSDA, k=kA), score, list(range(len(nmapA))), gomapsA[go], kfold = 5)
+                        scores, _ = compute_metric(dsd_func(DSDA, k=kA), score, list(range(len(nmapA))), gomapsA[go],
+                                                   kfold=5)
                         print(f"GO: {go}, DSD, k: {kA} ===> {np.average(scores):0.3f} +- {np.std(scores):0.3f}")
                         settings_dsd += [np.average(scores), np.std(scores)]
                         results.append(settings_dsd)
                     for kB in kBs:
-                        settings_mundo = settings + [go, metric, f"mundo4-knn-weight-{args.wB:0.3f}", kA, kB]
-                        scores, _ = compute_metric(dsd_func_mundo(DSDA, DISTS, gomapsB[go], k=kA, k_other=kB, weight_other = args.wB),
-                                                  score, list(range(len(nmapA))), gomapsA[go], kfold = 5, seed = args.seed)
+                        settings_mundo = settings + [go, metric, f"mundo4-knn-weight-{config.wB:0.3f}", kA, kB]
+                        scores, _ = compute_metric(
+                            dsd_func_mundo(DSDA, DISTS, gomapsB[go], k=kA, k_other=kB, weight_other=config.wB),
+                            score, list(range(len(nmapA))), gomapsA[go], kfold=5, seed=121)
                         settings_mundo += [np.average(scores), np.std(scores)]
-                        
-                        print(f"GO: {go}, MUNDO4, kA: {kA}, kB: {kB} ===> {np.average(scores):0.3f} +- {np.std(scores):0.3f}")
+
+                        print(
+                            f"GO: {go}, MUNDO4, kA: {kA}, kB: {kB} ===> {np.average(scores):0.3f} +- {np.std(scores):0.3f}")
                         results.append(settings_mundo)
-        columns = ["Species A", "Species B", "SVD embedding", "Landmark no", "GO type", "Scoring metric", "Prediction method",
-                  "kA", "kB", "Average score", "Standard deviation"]
-        resultsdf = pd.DataFrame(results, columns = columns)
-        resultsdf.to_csv(args.output_file, sep = "\t", index = None, mode = "a", header = not os.path.exists(args.output_file))
+        columns = ["Species A", "Species B", "SVD embedding", "Landmark no", "GO type", "Scoring metric",
+                   "Prediction method",
+                   "kA", "kB", "Average score", "Standard deviation"]
+        resultsdf = pd.DataFrame(results, columns=columns)
+        resultsdf.to_csv(config.output_eval_file, sep="\t", index=None, mode="a",
+                         header=not os.path.exists(config.output_eval_file))
     return
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    main(add_args(parser))
-      
-    
-    
-    
+    parser.add_argument("--config", help="Config YAML file")
+    main(Config(parser.parse_args().config))
