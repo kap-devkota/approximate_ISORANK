@@ -10,12 +10,12 @@ from scipy.spatial.distance import pdist, squareform
 from scipy.linalg import pinv, svd
 import argparse
 import os
-from io_utils import compute_adjacency
+from .io_utils import compute_adjacency
 from .data import CuratedData, PredictData
-from model import AttentionModel3
-from isorank import isorank, compute_greedy_assignment
-from predict_score import topk_accs, compute_metric, dsd_func, dsd_func_mundo, scoring_fcn
-from linalg import compute_k_svd_uv
+from .model import AttentionModel3
+from .isorank import isorank, compute_greedy_assignment
+from .predict_score import topk_accs, compute_metric, dsd_func, dsd_func_mundo, scoring_fcn
+from .linalg import compute_k_svd_uv
 import re
 import pandas as pd
 import torch
@@ -27,6 +27,14 @@ import yaml
 import networkx as nx
 import pickle as pkl
 
+
+class DuoMundoArgs(NamedTuple):
+    config: str
+    func: Callable[[ApproxIsorankArgs], None]
+
+def add_args(parser):
+    parser.add_argument("--config", help="Config YAML file")
+    return parser
 
 class Config:
     def __init__(self, cfile):
@@ -306,10 +314,11 @@ def get_go_maps(gofile, nmap, gotype):
     return go_outs, all_gos
 
 
-def main(config):
+def main(args):
     """
     Main function
     """
+    config = Config(args.config)
     DSDA, Aa, nmapA = compute_dsd_dist(config, config.ppiAfile, config.dsdAfile)
     DSDB, Ab, nmapB = compute_dsd_dist(config, config.ppiBfile, config.dsdBfile)
 
@@ -383,5 +392,4 @@ def main(config):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", help="Config YAML file")
-    main(Config(parser.parse_args().config))
+    main(add_args(parser))
